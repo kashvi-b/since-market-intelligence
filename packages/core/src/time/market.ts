@@ -110,6 +110,11 @@ export class TradingCalendar {
     return this.closeInstant(candidate)
   }
 
+  /** The calendar date of an instant, in this market's timezone. */
+  dateOf(at: Date): string {
+    return istDate(at, this.tz)
+  }
+
   /** The instant a given session closed, in UTC. */
   closeInstant(date: string): Date {
     return instantAtLocalMinute(date, this.closeMin, this.tz)
