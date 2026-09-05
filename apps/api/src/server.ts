@@ -91,6 +91,12 @@ function userIdOf(req: { cookies: Record<string, string | undefined>; unsignCook
   if (!raw) throw unauthorized('No session. POST /api/session/demo first.')
   const un = req.unsignCookie(raw)
   if (!un.valid || !un.value) throw unauthorized('Invalid session cookie.')
+  // The seeded user is a template, not an identity. Cookies naming it were
+  // handed out before sessions were cloned per visitor, they renew themselves
+  // for thirty days, and read cursors only ever move forward — so one click
+  // from one stale browser would burn a card out of every future visitor's
+  // brief, permanently and invisibly. Refuse it; the caller mints a clone.
+  if (un.value === DEMO_USER) throw unauthorized('Stale session. POST /api/session/demo first.')
   return un.value
 }
 
@@ -162,9 +168,12 @@ app.post('/api/session/demo', { config: { rateLimit: LIMITS.session } }, async (
     const un = (req as unknown as { unsignCookie: (v: string) => { valid: boolean; value: string | null } })
       .unsignCookie(raw)
     if (un.valid && un.value) {
-      const [existing] = await db.select().from(schema.users)
-        .where(eq(schema.users.id, un.value)).limit(1)
-      if (existing) userId = existing.id
+      // Never re-adopt the template — see userIdOf.
+      if (un.value !== DEMO_USER) {
+        const [existing] = await db.select().from(schema.users)
+          .where(eq(schema.users.id, un.value)).limit(1)
+        if (existing) userId = existing.id
+      }
     }
   }
 
@@ -192,10 +201,33 @@ app.get('/api/symbols/search', async (req) => {
       eq(schema.symbols.isIndex, false),
       eq(schema.symbols.status, 'ACTIVE'),
       or(ilike(schema.symbols.ticker, like), ilike(schema.symbols.name, like)),
+      // Both universes share one database. Unfiltered, a US watchlist offered
+      // the entire NIFTY 50 — and adding one put an Indian stock, priced in
+      // rupees from a synthetic dataset, on the list behind a dollar sign.
+      onThisMarket((await activeMarket()).id === 'nifty50'),
     ))
     .orderBy(asc(schema.symbols.ticker)).limit(20)
   return { results: rows }
 })
+
+/**
+ * Restrict a symbol query to the active market.
+ *
+ * Market truth is keyed only by symbol, and the NSE tickers carry a `.NS`
+ * suffix, so membership is readable from the id. Kept in one place because the
+ * search box and the add endpoint must agree: filtering only the search would
+ * still let a crafted request add a foreign symbol.
+ */
+function onThisMarket(isNse: boolean) {
+  return isNse
+    ? dsql`${schema.symbols.id} LIKE '%.NS'`
+    : dsql`${schema.symbols.id} NOT LIKE '%.NS'`
+}
+
+/** True when a symbol belongs to the market this deployment is serving. */
+function symbolIsOnMarket(symbolId: string, isNse: boolean): boolean {
+  return symbolId.endsWith('.NS') === isNse
+}
 
 /* ------------------------------------------------------------- watchlist */
 
@@ -257,6 +289,13 @@ app.post('/api/watchlist/items', async (req) => {
   const [sym] = await db.select().from(schema.symbols).where(eq(schema.symbols.id, symbolId)).limit(1)
   if (!sym) throw notFound(`Unknown symbol ${symbolId}`)
   if (sym.isIndex) throw badRequest('Indices are benchmarks, not watchable instruments.')
+  // Enforced here as well as in search: filtering only the picker would still
+  // let a crafted request mix exchanges into one watchlist, where the prices
+  // are in different currencies and scored against a different benchmark.
+  const market = await activeMarket()
+  if (!symbolIsOnMarket(sym.id, market.id === 'nifty50')) {
+    throw badRequest(`${sym.ticker} is not listed on ${market.label}.`)
+  }
 
   const positions = await db.select({ max: dsql<number>`coalesce(max(${schema.watchlistItems.position}), -1)` })
     .from(schema.watchlistItems).where(eq(schema.watchlistItems.watchlistId, wl.id))
