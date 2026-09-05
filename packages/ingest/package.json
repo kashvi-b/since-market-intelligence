@@ -1,0 +1,13 @@
+{
+  "name": "@since/ingest",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": { "start": "tsx src/cli.ts", "test": "vitest run" },
+  "dependencies": {
+    "@since/core": "*",
+    "@since/db": "*",
+    "yahoo-finance2": "^2.13.3"
+  },
+  "devDependencies": { "tsx": "^4.19.2", "vitest": "^2.1.8" }
+}

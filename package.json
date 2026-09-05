@@ -1,0 +1,46 @@
+{
+  "name": "since",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "eval"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db && node scripts/wait-for-db.mjs",
+    "db:down": "docker compose down",
+    "db:push": "npm run -w @since/db push -- --force",
+    "db:studio": "npm run -w @since/db studio",
+    "ingest": "npm run -w @since/ingest start --",
+    "eval": "npm run -w @since/eval start --",
+    "api": "npm run -w @since/api start",
+    "web": "npm run -w @since/web dev",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run -w @since/web build",
+    "test": "npm run -w @since/core test && npm run -w @since/agent test && npm run -w @since/ingest test",
+    "typecheck": "node scripts/typecheck.mjs",
+    "smoke": "tsx scripts/smoke-brief.ts",
+    "setup": "npm run env:init && npm run db:up && npm run db:push && npm run ingest && npm run eval",
+    "demo:reset": "tsx scripts/demo-reset.ts",
+    "feed:check": "node scripts/feed-check.mjs",
+    "status": "node scripts/status.mjs",
+    "share": "node scripts/share.mjs",
+    "validate": "node scripts/validate.mjs",
+    "env:init": "node scripts/env-init.mjs",
+    "eval:us": "npm run -w @since/eval start -- us",
+    "agent:check": "tsx scripts/agent-check.ts",
+    "start": "node scripts/serve.mjs",
+    "deploy:seed": "tsx scripts/deploy-seed.mjs",
+    "db:snapshot": "node scripts/db-snapshot.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

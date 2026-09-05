@@ -1,0 +1,30 @@
+# Isolated Postgres for the `since` project only.
+#
+# The project name is pinned. Compose otherwise derives it from the directory
+# name, so moving the checkout made it look for a different volume than the one
+# holding the ingested data — it tried to create an empty one alongside it.
+name: since
+
+# Distinct container name, volume name and host port (5544) so it cannot
+# collide with, or touch, any other database on this machine.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: since_db
+    environment:
+      POSTGRES_USER: since
+      POSTGRES_PASSWORD: since
+      POSTGRES_DB: since
+    ports:
+      - "5544:5432"
+    volumes:
+      - since_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U since -d since"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  since_pgdata:
+    name: since_pgdata

@@ -1,0 +1,8 @@
+{
+  "name": "@since/eval",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "tsx src/run.ts" },
+  "dependencies": { "@since/core": "*", "@since/db": "*", "drizzle-orm": "^0.38.2" },
+  "devDependencies": { "tsx": "^4.19.2" }
+}

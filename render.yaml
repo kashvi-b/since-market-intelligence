@@ -1,0 +1,64 @@
+# Render blueprint for Since.
+#
+# One web service and one Postgres. The API is not exposed: Next proxies /api to
+# it over loopback (see next.config.mjs), so a deployment has the same request
+# path as a laptop and there is no second public surface to secure.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> point at this repo.
+#
+# The database is Neon, not Render. Render deletes a free Postgres after 30
+# days, which would quietly break the very link this deployment exists to keep
+# alive. Neon's free tier has no such expiry; it suspends when idle and wakes on
+# the next connection, which the keep-warm ping already covers.
+
+services:
+  - type: web
+    name: since
+    runtime: node
+    plan: free            # Sleeps after 15 minutes idle; first request ~50s.
+    # MUST match the Neon project's region. The brief issues tens of sequential
+    # queries; at 245 ms per cross-continent round trip (Singapore -> Ohio,
+    # measured) that alone made it take 8.7s instead of 0.6s. Co-located, the
+    # round trip is a couple of milliseconds and the distance from the user
+    # costs one round trip for the page, not thirty-five.
+    region: singapore     # Neon project is in ap-southeast-1.
+    buildCommand: npm install && npm run build && npm run deploy:seed
+    startCommand: npm start
+    # Cheap and precise: it touches the database, so a green check means the
+    # service can actually serve a brief, not just render a shell.
+    healthCheckPath: /api/health
+    envVars:
+      # Neon connection string, set in the Render dashboard. Must include
+      # ?sslmode=require — the client enables TLS for any non-loopback host.
+      - key: DATABASE_URL
+        sync: false
+      # The database client refuses non-loopback hosts unless this is set, so a
+      # stray DATABASE_URL cannot point a laptop at someone else's server.
+      - key: ALLOW_REMOTE_DB
+        value: "true"
+      - key: NODE_VERSION
+        value: "20"
+      - key: API_PORT
+        value: "4000"
+      # Free Postgres allows few connections; two processes share them.
+      - key: DB_POOL_MAX
+        value: "5"
+      # Session cookies are signed with this. Left unset, the code falls back to
+      # a default committed to a public repository, and anyone could forge a
+      # session — including the template user every visitor is cloned from.
+      # generateValue makes Render mint a random one per service.
+      - key: COOKIE_SECRET
+        generateValue: true
+      # Optional: enables the investigation agent. Without it the deterministic
+      # engine explains changes, which is the default path rather than a
+      # degraded one. Set this in the Render dashboard, not in this file.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AGENT_PROVIDER
+        value: gemini
+      - key: AGENT_MODEL
+        value: gemini-3.5-flash,gemini-3.7-flash,gemini-3.1-flash-lite
+      # Optional: only used if the database boots empty and has to self-seed.
+      # The normal path is a restored snapshot of real market data.
+      - key: TWELVEDATA_API_KEY
+        sync: false

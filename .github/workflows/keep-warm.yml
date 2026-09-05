@@ -1,0 +1,52 @@
+# Keep the deployment answering quickly.
+#
+# Render's free tier sleeps a service after 15 minutes idle and takes ~50s to
+# wake, and Neon suspends an idle database. A reviewer opening the link cold
+# would meet a blank minute and conclude the thing is broken. A cheap request
+# every ten minutes keeps both awake.
+#
+# Note: GitHub disables scheduled workflows after 60 days without repo activity.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the health endpoint
+        run: |
+          set -uo pipefail
+          RAW="${{ vars.DEPLOY_URL }}"
+          if [ -z "$RAW" ]; then
+            echo "DEPLOY_URL repository variable is not set; nothing to ping."
+            exit 0
+          fi
+          # Tolerate a trailing slash. Pasting the URL from a browser gives one,
+          # and "$URL/api/health" then becomes a double slash, which Render
+          # answers with a 308 redirect. That never reaches the database — and a
+          # naive 2xx-or-3xx check calls the redirect a success, so the job goes
+          # green every ten minutes while Neon quietly suspends underneath it.
+          URL="${RAW%/}"
+
+          # /api/health queries the database, so this wakes Neon too, not just
+          # the web service in front of it. -L follows any redirect that remains.
+          body=$(mktemp)
+          code=$(curl -sSL -o "$body" -w '%{http_code}' --max-time 90 "$URL/api/health")
+          echo "GET $URL/api/health -> $code"
+          head -c 300 "$body"; echo
+
+          # Insist on 200 AND on the payload the API actually returns. A cold
+          # start, a redirect loop or an error page must not read as healthy.
+          if [ "$code" != "200" ]; then
+            echo "::error::expected 200, got $code"
+            exit 1
+          fi
+          if ! grep -q '"ok":true' "$body"; then
+            echo "::error::health endpoint did not report ok:true"
+            exit 1
+          fi
+          echo "deployment and database are both awake"

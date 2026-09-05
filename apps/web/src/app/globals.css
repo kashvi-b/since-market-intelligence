@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { @apply bg-paper text-ink font-sans; }
+
+  /* Financial figures must align vertically down a column. */
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+
+  :focus-visible { @apply outline-none ring-2 ring-ink ring-offset-2 ring-offset-paper; }
+}
+
+@layer components {
+  /* The editorial voice: large, tight, serif. Used only for the hero sentence. */
+  .lede {
+    @apply font-serif text-ink;
+    font-size: clamp(1.6rem, 4.2vw, 2.75rem);
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+  }
+  .eyebrow {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-ink-faint;
+  }
+  .rule { @apply border-t border-ink-hairline; }
+
+  /* A section label. Quieter than a heading, louder than body. */
+  .section-label {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-ink-faint;
+  }
+
+  /*
+   * Consistent vertical rhythm.
+   *
+   * Sections previously each chose their own top margin, which made the page
+   * drift. One class, one value, so the eye can predict where the next block
+   * starts.
+   */
+  .section { @apply mt-12 border-t border-ink-hairline pt-7; }
+  .section-tight { @apply mt-8 border-t border-ink-hairline pt-6; }
+
+  /*
+   * A figure and its label. Numbers are tabular so columns align, and the label
+   * sits beneath rather than beside so the digits are what the eye lands on.
+   */
+  .figure { @apply tnum font-serif leading-none text-ink; }
+
+  /*
+   * Comfortable touch target for inline text controls.
+   *
+   * Links and text buttons measured 14-19px tall on a phone, well under the 44px
+   * guideline. Padding them would have changed the editorial line spacing this
+   * design depends on, so the hit area is expanded with a pseudo-element on
+   * coarse pointers only: nothing moves, nothing looks different, and a thumb
+   * can land on it.
+   */
+  .tap { @apply relative; }
+
+  /* Ledger row: label left, value right, aligned on a shared baseline. */
+  .ledger {
+    @apply flex items-baseline justify-between gap-4 border-b border-ink-hairline/70 py-2;
+  }
+  .ledger:last-child { @apply border-b-0; }
+}
+
+@media (pointer: coarse) {
+  .tap::after {
+    content: '';
+    position: absolute;
+    inset: -13px -10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Evidence and cards enter in sequence — the only decorative motion in the app. */
+@keyframes riseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rise { animation: riseIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
