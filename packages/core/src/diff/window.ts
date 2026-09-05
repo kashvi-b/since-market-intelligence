@@ -65,11 +65,14 @@ export function resolveWindow(params: {
   // deliberate one. Show the session leading up to that moment instead.
   if (ahead > CLOCK_SKEW_TOLERANCE_MS) {
     const sessions = calendar.allSessions
-    const day = istDate(at)
+    const day = calendar.dateOf(at)
     let idx = sessions.findIndex((d) => d >= day)
     if (idx < 0) idx = sessions.length - 1
     const startDate = sessions[Math.max(0, idx - firstVisitSessions)] ?? sessions[0]
-    const windowStart = startDate ? new Date(`${startDate}T04:44:00.000Z`) : at
+    // Same reasoning as the first-visit branch above, which was fixed and this
+    // one was not: 04:44Z is mid-morning in Mumbai and 00:44 in New York, hours
+    // before any US session, so replay opened on a window with no bars in it.
+    const windowStart = startDate ? calendar.closeInstant(startDate) : at
     const awayMs = Math.max(0, at.getTime() - windowStart.getTime())
     return {
       windowStart,
